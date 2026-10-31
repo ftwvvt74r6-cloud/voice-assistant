@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能语音助手 - Vosk + DeepSeek</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 1000px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 90vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 1em;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            padding: 15px 30px;
+            background: #f7fafc;
+            border-bottom: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .status-vosk {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status-deepseek {
+            background: #bee3f8;
+            color: #2a4365;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .connected {
+            background-color: #48bb78;
+        }
+        
+        .disconnected {
+            background-color: #e53e3e;
+        }
+        
+        .content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .left-panel {
+            flex: 1;
+            padding: 30px;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+        }
+        
+        .right-panel {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+        }
+        
+        .panel-title {
+            font-size: 1.3em;
+            color: #4a5568;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 14px 25px;
+            border: none;
+            border-radius: 50px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            justify-content: center;
+            min-width: 160px;
+        }
+        
+        .btn-record {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-record:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        
+        .btn-record.recording {
+            background: #f56565;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .btn-stop {
+            background: #e53e3e;
+            color: white;
+        }
+        
+        .btn-stop:hover {
+            background: #c53030;
+        }
+        
+        .btn-clear {
+            background: #a0aec0;
+            color: white;
+        }
+        
+        .btn-clear:hover {
+            background: #718096;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 101, 101, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 101, 101, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 101, 101, 0); }
+        }
+        
+        .text-area {
+            flex: 1;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .chat-container {
+            flex: 1;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 15px;
+            border-radius: 15px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background: #4299e1;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .assistant-message {
+            background: #edf2f7;
+            color: #2d3748;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message-header {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+        
+        .partial-result {
+            background: #fff5f5;
+            border: 1px dashed #fed7d7;
+            color: #742a2a;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-style: italic;
+            margin-top: 10px;
+        }
+        
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .text-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            resize: none;
+            min-height: 60px;
+            font-family: inherit;
+        }
+        
+        .btn-send {
+            padding: 0 25px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .btn-send:hover {
+            background: #3182ce;
+        }
+        
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #718096;
+            font-style: italic;
+        }
+        
+        .dot-flashing {
+            position: relative;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: #718096;
+            color: #718096;
+            animation: dotFlashing 1s infinite linear alternate;
+            animation-delay: .5s;
+        }
+        
+        .dot-flashing::before, .dot-flashing::after {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            top: 0;
+        }
+        
+        .dot-flashing::before {
+            left: -15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: #718096;
+            color: #718096;
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: 0s;
+        }
+        
+        .dot-flashing::after {
+            left: 15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: #718096;
+            color: #718096;
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: 1s;
+        }
+        
+        @keyframes dotFlashing {
+            0% {
+                background-color: #718096;
+            }
+            50%, 100% {
+                background-color: #e2e8f0;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+            
+            .left-panel, .right-panel {
+                min-width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            
+            .btn {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span>🎤</span>
+                智能语音助手
+                <span>🤖</span>
+            </h1>
+            <div class="subtitle">Vosk 实时语音识别 + DeepSeek 智能对话</div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item status-vosk">
+                <span id="voskIndicator" class="status-indicator disconnected"></span>
+                Vosk 语音识别: <span id="voskStatus">连接中...</span>
+            </div>
+            <div class="status-item status-deepseek">
+                <span id="deepseekIndicator" class="status-indicator disconnected"></span>
+                DeepSeek API: <span id="deepseekStatus">未连接</span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="left-panel">
+                <div class="panel-title">
+                    <span>🎤</span>
+                    语音识别控制
+                </div>
+                
+                <div class="controls">
+                    <button id="recordBtn" class="btn btn-record">
+                        <span class="icon">🎤</span>
+                        <span>开始录音</span>
+                    </button>
+                    <button id="stopBtn" class="btn btn-stop" disabled>
+                        <span class="icon">⏹️</span>
+                        <span>停止录音</span>
+                    </button>
+                    <button id="clearBtn" class="btn btn-clear">
+                        <span class="icon">🗑️</span>
+                        <span>清空文本</span>
+                    </button>
+                </div>
+                
+                <div class="panel-title">
+                    <span>📝</span>
+                    识别结果
+                </div>
+                
+                <div class="text-area">
+                    <div id="resultText" class="result-text">
+                        语音识别结果将显示在这里...
+                    </div>
+                    <div id="partialText" class="partial-result"></div>
+                </div>
+                
+                <div class="input-area">
+                    <textarea id="textInput" class="text-input" 
+                              placeholder="也可以直接输入文字发送..."></textarea>
+                    <button id="sendBtn" class="btn-send">发送</button>
+                </div>
+            </div>
+            
+            <div class="right-panel">
+                <div class="panel-title">
+                    <span>🤖</span>
+                    智能对话
+                </div>
+                
+                <div class="controls">
+                    <button id="sendVoiceBtn" class="btn" style="background: #805ad5; color: white;">
+                        <span class="icon">🎤→🤖</span>
+                        <span>发送语音到AI</span>
+                    </button>
+                    <button id="clearChatBtn" class="btn" style="background: #f6ad55; color: white;">
+                        <span class="icon">🗨️</span>
+                        <span>清空对话</span>
+                    </button>
+                </div>
+                
+                <div id="chatContainer" class="chat-container">
+                    <div class="message assistant-message">
+                        <div class="message-header">AI助手</div>
+                        你好！我是智能语音助手，支持语音输入和文字输入。<br>
+                        你可以点击"开始录音"说话，或者直接在左侧输入文字。
+                    </div>
+                </div>
+                
+                <div id="loadingIndicator" class="loading" style="display: none;">
+                    <div class="dot-flashing"></div>
+                    DeepSeek 正在思考中...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let voskWebSocket = null;
+        let isRecording = false;
+        let voskConnected = false;
+        let deepseekConnected = false;
+        let audioContext = null;
+        let audioInput = null;
+        let processor = null;
+        let currentSessionId = 'session_' + Date.now();
+        
+        // DOM元素
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const sendVoiceBtn = document.getElementById('sendVoiceBtn');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const textInput = document.getElementById('textInput');
+        const resultText = document.getElementById('resultText');
+        const partialText = document.getElementById('partialText');
+        const chatContainer = document.getElementById('chatContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const voskStatus = document.getElementById('voskStatus');
+        const deepseekStatus = document.getElementById('deepseekStatus');
+        const voskIndicator = document.getElementById('voskIndicator');
+        const deepseekIndicator = document.getElementById('deepseekIndicator');
+        
+        // 连接Vosk WebSocket
+        function connectVoskWebSocket() {
+            const wsUrl = 'ws://localhost:2700';
+            voskWebSocket = new WebSocket(wsUrl);
+            
+            voskWebSocket.onopen = function() {
+                console.log('✅ Vosk WebSocket连接成功');
+                updateVoskStatus('已连接', true);
+                
+                // 发送初始化消息
+                voskWebSocket.send(JSON.stringify({
+                    type: 'init',
+                    sampleRate: 16000,
+                    format: 'pcm'
+                }));
+            };
+            
+            voskWebSocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'result') {
+                        // 最终结果
+                        if (data.text) {
+                            const currentText = resultText.textContent;
+                            if (currentText === '语音识别结果将显示在这里...') {
+                                resultText.textContent = data.text;
+                            } else {
+                                resultText.textContent = data.text;
+                            }
+                            partialText.textContent = '';
+                        }
+                    } else if (data.type === 'partial') {
+                        // 部分结果
+                        if (data.text) {
+                            partialText.textContent = data.text + '...';
+                        }
+                    } else if (data.status === 'ready') {
+                        console.log('Vosk服务器已准备好');
+                    }
+                } catch (e) {
+                    console.error('Vosk消息解析错误:', e);
+                }
+            };
+            
+            voskWebSocket.onerror = function(error) {
+                console.error('Vosk WebSocket错误:', error);
+                updateVoskStatus('连接失败', false);
+            };
+            
+            voskWebSocket.onclose = function() {
+                console.log('Vosk WebSocket连接关闭');
+                updateVoskStatus('已断开', false);
+                
+                // 尝试重新连接
+                setTimeout(connectVoskWebSocket, 3000);
+            };
+        }
+        
+        // 更新Vosk状态
+        function updateVoskStatus(status, connected) {
+            voskStatus.textContent = status;
+            voskConnected = connected;
+            voskIndicator.className = 'status-indicator ' + (connected ? 'connected' : 'disconnected');
+        }
+        
+        // 更新DeepSeek状态
+        function updateDeepseekStatus(status, connected) {
+            deepseekStatus.textContent = status;
+            deepseekConnected = connected;
+            deepseekIndicator.className = 'status-indicator ' + (connected ? 'connected' : 'disconnected');
+        }
+        
+        // 测试DeepSeek连接
+        async function testDeepseekConnection() {
+            try {
+                const response = await fetch('http://localhost:5001/api/health');
+                if (response.ok) {
+                    updateDeepseekStatus('已连接', true);
+                    console.log('✅ DeepSeek服务器连接成功');
+                    return true;
+                }
+            } catch (error) {
+                console.warn('DeepSeek服务器未响应，请确保已启动deepseek_server.py');
+            }
+            updateDeepseekStatus('未连接', false);
+            return false;
+        }
+        
+        // 发送消息到DeepSeek
+        async function sendToDeepSeek(message) {
+            if (!deepseekConnected) {
+                if (!await testDeepseekConnection()) {
+                    addMessage('系统', '请先启动DeepSeek服务器 (运行 deepseek_server.py)', true);
+                    return;
+                }
+            }
+            
+            if (!message || message.trim() === '') {
+                return;
+            }
+            
+            // 添加用户消息到聊天框
+            addMessage('你', message, false);
+            
+            // 清空输入框
+            textInput.value = '';
+            
+            // 显示加载指示器
+            loadingIndicator.style.display = 'flex';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: currentSessionId,
+                        context: '你是智能语音助手，请用友好、专业的语气回答用户的问题。'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // 添加AI回复到聊天框
+                        addMessage('AI助手', data.reply, true);
+                        
+                        // 更新状态
+                        updateDeepseekStatus('已连接', true);
+                    } else {
+                        addMessage('系统', `错误: ${data.message}`, true);
+                    }
+                } else {
+                    addMessage('系统', 'DeepSeek服务器响应错误', true);
+                    updateDeepseekStatus('连接失败', false);
+                }
+            } catch (error) {
+                console.error('发送到DeepSeek失败:', error);
+                addMessage('系统', '无法连接到DeepSeek服务器', true);
+                updateDeepseekStatus('未连接', false);
+            } finally {
+                // 隐藏加载指示器
+                loadingIndicator.style.display = 'none';
+            }
+        }
+        
+        // 添加消息到聊天框
+        function addMessage(sender, content, isAssistant) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isAssistant ? 'assistant-message' : 'user-message'}`;
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            header.textContent = sender;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.innerHTML = content.replace(/\n/g, '<br>');
+            
+            messageDiv.appendChild(header);
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+            
+            // 滚动到底部
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // 清空聊天记录
+        async function clearChatHistory() {
+            try {
+                await fetch('http://localhost:5001/api/clear_history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSessionId
+                    })
+                });
+                
+                chatContainer.innerHTML = `
+                    <div class="message assistant-message">
+                        <div class="message-header">AI助手</div>
+                        对话历史已清空。有什么我可以帮助你的吗？
+                    </div>
+                `;
+            } catch (error) {
+                console.error('清空历史失败:', error);
+            }
+        }
+        
+        // 开始录音
+        async function startRecording() {
+            if (!voskConnected) {
+                alert('请先等待Vosk服务器连接...');
+                return;
+            }
+            
+            try {
+                // 停止任何现有的音频处理
+                if (processor) {
+                    processor.disconnect();
+                    processor = null;
+                }
+                
+                if (audioInput) {
+                    audioInput.disconnect();
+                    audioInput = null;
+                }
+                
+                if (audioContext) {
+                    audioContext.close();
+                    audioContext = null;
+                }
+                
+                // 创建新的音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 16000
+                });
+                
+                // 获取麦克风权限
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 16000,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    },
+                    video: false
+                });
+                
+                // 创建音频源
+                audioInput = audioContext.createMediaStreamSource(stream);
+                
+                // 创建音频处理器
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                // 处理音频数据
+                processor.onaudioprocess = function(e) {
+                    if (!isRecording || !voskWebSocket || voskWebSocket.readyState !== WebSocket.OPEN) {
+                        return;
+                    }
+                    
+                    // 获取音频数据
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    
+                    // 转换为16位PCM
+                    const pcmData = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        pcmData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+                    }
+                    
+                    // 发送PCM数据
+                    try {
+                        voskWebSocket.send(pcmData.buffer);
+                    } catch (err) {
+                        console.error('发送音频数据失败:', err);
+                    }
+                };
+                
+                // 连接音频处理链
+                audioInput.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                isRecording = true;
+                
+                // 更新UI
+                recordBtn.disabled = true;
+                recordBtn.classList.add('recording');
+                recordBtn.innerHTML = '<span class="icon">🔴</span><span>录音中...</span>';
+                stopBtn.disabled = false;
+                
+                updateVoskStatus('录音中...', true);
+                
+            } catch (error) {
+                console.error('录音失败:', error);
+                alert('无法访问麦克风，请检查权限设置: ' + error.message);
+                stopRecording();
+            }
+        }
+        
+        // 停止录音
+        function stopRecording() {
+            if (isRecording) {
+                isRecording = false;
+                
+                // 断开音频处理
+                if (processor) {
+                    processor.disconnect();
+                    processor = null;
+                }
+                
+                if (audioInput) {
+                    audioInput.disconnect();
+                    audioInput = null;
+                }
+                
+                // 更新UI
+                recordBtn.disabled = false;
+                recordBtn.classList.remove('recording');
+                recordBtn.innerHTML = '<span class="icon">🎤</span><span>开始录音</span>';
+                stopBtn.disabled = true;
+                
+                updateVoskStatus('已连接', true);
+            }
+        }
+        
+        // 清空识别文本
+        function clearText() {
+            resultText.textContent = '语音识别结果将显示在这里...';
+            partialText.textContent = '';
+        }
+        
+        // 发送语音识别结果到DeepSeek
+        function sendVoiceResultToAI() {
+            const text = resultText.textContent;
+            if (text && text !== '语音识别结果将显示在这里...') {
+                sendToDeepSeek(text);
+                clearText();
+            } else {
+                alert('请先录音或输入文字');
+            }
+        }
+        
+        // 事件监听
+        recordBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+        clearBtn.addEventListener('click', clearText);
+        sendVoiceBtn.addEventListener('click', sendVoiceResultToAI);
+        clearChatBtn.addEventListener('click', clearChatHistory);
+        sendBtn.addEventListener('click', () => {
+            const text = textInput.value.trim();
+            if (text) {
+                sendToDeepSeek(text);
+            }
+        });
+        
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const text = textInput.value.trim();
+                if (text) {
+                    sendToDeepSeek(text);
+                }
+            }
+        });
+        
+        // 页面加载时初始化
+        window.addEventListener('load', function() {
+            console.log('🚀 智能语音助手初始化...');
+            connectVoskWebSocket();
+            testDeepseekConnection();
+            
+            // 生成新的会话ID
+            currentSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            console.log('当前会话ID:', currentSessionId);
+        });
+        
+        // 页面关闭时断开连接
+        window.addEventListener('beforeunload', function() {
+            if (voskWebSocket) {
+                voskWebSocket.close();
+            }
+            stopRecording();
+            if (audioContext) {
+                audioContext.close();
+            }
+        });
+    </script>
+</body>
+</html>
